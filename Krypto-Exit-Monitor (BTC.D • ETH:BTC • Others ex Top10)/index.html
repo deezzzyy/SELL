@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Krypto-Exit-Monitor</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --accent:#22c55e; --warn:#f59e0b; --sell:#ef4444; --border:#1f2937;
+    }
+    *{box-sizing:border-box;}
+    body{margin:0;background:linear-gradient(180deg,#0b0f14 0%, #0f172a 100%);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;color:var(--text);} 
+    header{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:rgba(11,15,20,.85);} 
+    h1{font-size:18px;margin:0;letter-spacing:.2px}
+    .small{color:var(--muted);font-size:12px}
+    .wrap{max-width:900px;margin:12px auto;padding:0 8px}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media(min-width:600px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media(min-width:900px){.grid{grid-template-columns:repeat(3,1fr)}}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:12px;box-shadow:0 4px 12px rgba(0,0,0,.2)}
+    .title{font-weight:700;margin-bottom:4px}
+    .desc{color:var(--muted);font-size:12px;margin-bottom:8px}
+    .value{font-size:28px;font-weight:800;letter-spacing:.3px}
+    .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .tag{font-size:12px;padding:3px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+    .ok{color:var(--accent);border-color:rgba(34,197,94,.35)}
+    .warn{color:var(--warn);border-color:rgba(245,158,11,.35)}
+    .sell{color:var(--sell);border-color:rgba(239,68,68,.35)}
+    .mute{color:var(--muted)}
+    .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    input[type="number"]{background:#0b1220;border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:8px;width:90px;font-size:14px}
+    button{background:#1e293b;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px}
+    button:hover{filter:brightness(1.1)}
+    .last{font-size:11px;color:var(--muted)}
+    .status{font-size:11px;margin-top:4px}
+    .hr{height:1px;background:var(--border);margin:8px 0}
+
+    /* SELL Button */
+    .sell-btn{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;border:none;border-radius:999px;padding:16px 28px;font-size:18px;font-weight:900;letter-spacing:.5px;background:var(--sell);color:#fff;box-shadow:0 8px 24px rgba(239,68,68,.35);z-index:50;opacity:.85}
+    .sell-btn[disabled]{opacity:.35;filter:grayscale(0.3);cursor:not-allowed;box-shadow:none}
+    .sell-btn.active{opacity:1;animation:pulse 1.2s ease-in-out infinite;}
+    @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.7)}70%{box-shadow:0 0 0 18px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+    @media(min-width:900px){.sell-btn{bottom:20px;font-size:20px;padding:18px 34px}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Krypto-Exit-Monitor <span class="small">(BTC.D • ETH/BTC • Others ex Top10)</span></h1>
+    <div class="controls">
+      <button id="refresh">Jetzt aktualisieren</button>
+      <button id="auto">Auto-Refresh: AUS</button>
+    </div>
+  </header>
+  <div class="wrap">
+    <div class="grid">
+      <section class="card" id="btcD">
+        <div class="title">1) Bitcoin-Dominanz (BTC.D)</div>
+        <div class="desc">Quelle: CoinGecko Global-API</div>
+        <div class="row"><div class="value" id="btcD_val">–</div><span class="tag" id="btcD_state">---</span></div>
+        <div class="hr"></div>
+        <div class="flex">
+          <label class="small">Beobachten &lt; </label><input id="btcD_watch" type="number" step="0.01" value="58.19" />
+          <label class="small">Verkaufen ≤ </label><input id="btcD_sell" type="number" step="0.01" value="54.56" />
+        </div>
+        <div class="status" id="btcD_note"></div>
+      </section>
+      <section class="card" id="ethBtc">
+        <div class="title">2) ETH/BTC</div>
+        <div class="desc">Quelle: CoinGecko Simple Price</div>
+        <div class="row"><div class="value" id="ethBtc_val">–</div><span class="tag" id="ethBtc_state">---</span></div>
+        <div class="hr"></div>
+        <div class="flex">
+          <label class="small">Bestätigung ≥ </label><input id="ethBtc_conf" type="number" step="0.000001" value="0.054" />
+          <label class="small">Großer Exit ≥ </label><input id="ethBtc_exit" type="number" step="0.000001" value="0.12" />
+        </div>
+        <div class="status" id="ethBtc_note"></div>
+      </section>
+      <section class="card" id="others">
+        <div class="title">3) Dominanz „Others“ (ex Top-10)</div>
+        <div class="desc">Quelle: CoinGecko</div>
+        <div class="row"><div class="value" id="others_val">–</div><span class="tag" id="others_state">---</span></div>
+        <div class="hr"></div>
+        <div class="flex">
+          <label class="small">Beobachten ≥ </label><input id="others_watch" type="number" step="0.01" value="8.92" />
+          <label class="small">Exit ≥ </label><input id="others_sell" type="number" step="0.01" value="19.54" />
+        </div>
+        <div class="status" id="others_note"></div>
+      </section>
+      <section class="card" style="grid-column:1/-1">
+        <div class="row" style="justify-content:space-between;align-items:flex-end">
+          <div class="last" id="lastUpdate">Zuletzt aktualisiert: –</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Floating SELL button -->
+  <button id="sellBtn" class="sell-btn" disabled>SELL</button>
+
+<script>
+  const $ = (sel)=>document.querySelector(sel);
+  const formatPct = (x)=> (x===null||Number.isNaN(x))? '–' : x.toFixed(2)+'%';
+  const formatNum = (x, d=6)=> (x===null||Number.isNaN(x))? '–' : Number(x).toFixed(d);
+  const stateTag = (el, cls, text)=>{ el.className = 'tag '+cls; el.textContent = text; };
+  async function fetchBTCdominance(){
+    const r = await fetch('https://api.coingecko.com/api/v3/global');
+    if(!r.ok) throw new Error('CoinGecko /global fehlgeschlagen');
+    const j = await r.json();
+    return j?.data?.market_cap_percentage?.btc;
+  }
+  async function fetchETHBTC(){
+    const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=btc');
+    if(!r.ok) throw new Error('CoinGecko simple/price fehlgeschlagen');
+    const j = await r.json();
+    return Number(j?.ethereum?.btc);
+  }
+  async function fetchOthersDominance(){
+    const g = await fetch('https://api.coingecko.com/api/v3/global');
+    if(!g.ok) throw new Error('CoinGecko /global fehlgeschlagen');
+    const gj = await g.json();
+    const total = gj?.data?.total_market_cap?.usd;
+    const t = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false');
+    if(!t.ok) throw new Error('CoinGecko /coins/markets fehlgeschlagen');
+    const tj = await t.json();
+    const top10 = tj.reduce((s,c)=> s + (c.market_cap||0), 0);
+    if(!total || !top10) throw new Error('Fehlende Daten');
+    return ((total - top10) / total) * 100;
+  }
+  function updateSellButton(isActive){
+    const btn = $('#sellBtn');
+    if(isActive){
+      btn.disabled = false;
+      btn.classList.add('active');
+      btn.textContent = 'SELL – Alle 3 Trigger aktiv';
+      if('vibrate' in navigator){ try{ navigator.vibrate(200); }catch(_){} }
+    }else{
+      btn.disabled = true;
+      btn.classList.remove('active');
+      btn.textContent = 'SELL';
+    }
+  }
+  async function updateAll(){
+    try{
+      const btcD = await fetchBTCdominance();
+      $('#btcD_val').textContent = formatPct(btcD);
+      const w1 = Number($('#btcD_watch').value), s1 = Number($('#btcD_sell').value);
+      if(btcD <= s1){ stateTag($('#btcD_state'),'sell','Verkauf'); $('#btcD_note').textContent = 'Unter Sell-Trigger'; }
+      else if(btcD < w1){ stateTag($('#btcD_state'),'warn','Beobachten'); $('#btcD_note').textContent = 'Unter Beobachtungs-Level'; }
+      else{ stateTag($('#btcD_state'),'ok','OK'); $('#btcD_note').textContent = 'Über Beobachtungs-Level'; }
+
+      const ethbtc = await fetchETHBTC();
+      $('#ethBtc_val').textContent = formatNum(ethbtc, 6);
+      const c2 = Number($('#ethBtc_conf').value), e2 = Number($('#ethBtc_exit').value);
+      if(ethbtc >= e2){ stateTag($('#ethBtc_state'),'sell','Großer Exit'); $('#ethBtc_note').textContent = 'Major Exit'; }
+      else if(ethbtc >= c2){ stateTag($('#ethBtc_state'),'warn','Bestätigt'); $('#ethBtc_note').textContent = 'Bullische Bestätigung'; }
+      else{ stateTag($('#ethBtc_state'),'mute','Unter Bestätigung'); $('#ethBtc_note').textContent = 'Noch unter Level'; }
+
+      const others = await fetchOthersDominance();
+      $('#others_val').textContent = formatPct(others);
+      const w3 = Number($('#others_watch').value), s3 = Number($('#others_sell').value);
+      if(others >= s3){ stateTag($('#others_state'),'sell','Exit'); $('#others_note').textContent = 'Others-Dominanz sehr hoch'; }
+      else if(others >= w3){ stateTag($('#others_state'),'warn','Beobachten'); $('#others_note').textContent = 'Erhöhte Altcoin-Dominanz'; }
+      else{ stateTag($('#others_state'),'ok','OK'); $('#others_note').textContent = 'Noch unter Level'; }
+
+      // SELL Button Logik: alle drei Bedingungen erfüllt?
+      const allSell = (btcD <= s1) && (ethbtc >= e2) && (others >= s3);
+      updateSellButton(allSell);
+
+      $('#lastUpdate').textContent = 'Zuletzt aktualisiert: '+new Date().toLocaleString();
+    }catch(e){
+      alert('Fehler: '+e.message);
+    }
+  }
+  let auto = false, timer = null;
+  $('#refresh').addEventListener('click', updateAll);
+  $('#sellBtn').addEventListener('click', ()=>{
+    if(!$('#sellBtn').disabled){
+      alert('Alle 3 Trigger aktiv. Zeit für deinen geplanten Exit.');
+    }
+  });
+  $('#auto').addEventListener('click', ()=>{
+    auto = !auto;
+    $('#auto').textContent = 'Auto-Refresh: ' + (auto? 'AN (60s)' : 'AUS');
+    if(auto){ updateAll(); timer = setInterval(updateAll, 60000);} else { clearInterval(timer); }
+  });
+  updateAll();
+</script>
+</body>
+</html>
